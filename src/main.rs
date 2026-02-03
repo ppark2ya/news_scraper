@@ -2,9 +2,10 @@ mod scrapers;
 mod notify;
 
 use scrapers::{Scraper, nyt::NytScraper, guardian::GuardianScraper, korea::KoreaScraper};
-use std::error::Error;
+use std::{error::Error};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    dotenv::dotenv().ok();
     println!("Starting Daily News Scraper...");
 
     let mut all_news = Vec::new();
@@ -55,8 +56,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // 5. Send Notification
-    println!("Sending Notification...");
-    notify::send_telegram(&message)?;
+    notify::send_to_slack(&message).expect("Failed to send to Slack");
 
     println!("Done.");
     Ok(())
