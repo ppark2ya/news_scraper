@@ -3,6 +3,7 @@ mod notify;
 
 use scrapers::{Scraper, nyt::NytScraper, guardian::GuardianScraper, korea::KoreaScraper};
 use std::{error::Error};
+use serde_json::json;
 
 fn main() -> Result<(), Box<dyn Error>> {
     dotenv::dotenv().ok();
@@ -35,28 +36,70 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // 4. Format Message
-    let mut message = String::from("<b>Daily News Digest</b>\n\n");
+    let mut blocks = Vec::new();
+
+    // Header
+    blocks.push(json!({
+        "type": "header",
+        "text": {
+            "type": "plain_text",
+            "text": "Daily News Digest 📰",
+            "emoji": true
+        }
+    }));
+    blocks.push(json!({ "type": "divider" }));
+
     if all_news.is_empty() {
-        message.push_str("No news found or potential errors.");
+        blocks.push(json!({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "No news found or potential errors."
+            }
+        }));
     } else {
         for item in all_news.iter() {
-            // Telegram has a message length limit (4096 chars), careful not to exceed.
-            // Limiting to ~20 items max if needed, but we gather about 5+5+12=22 items.
-            // It should be fine.
-            let entry = format!(
-                "<b>[{}] {}</b>\n<i>{}</i>\n<a href=\"{}\">Read More</a>\n\n",
-                item.source, item.title, item.published_date, item.url
-            );
-            if message.len() + entry.len() > 4000 {
-                message.push_str("\n... (truncated)");
-                break;
+            // Limit to avoid hitting Slack's block limit (50 blocks). 
+            // Header + Divider = 2 blocks. Each item = 2 blocks (section + divider).
+            // So roughly 20-24 items max.
+            if blocks.len() > 40 {
+               blocks.push(json!({
+                   "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "... (truncated)"
+                    }
+               }));
+               break;
             }
-            message.push_str(&entry);
+
+            blocks.push(json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("*[{}] {}*\n_{}_", item.source, item.title, item.published_date)
+                },
+                "accessory": {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Read More",
+                        "emoji": true
+                    },
+                    "url": item.url
+                }
+            }));
+            blocks.push(json!({ "type": "divider" }));
         }
     }
 
+    let payload = json!({
+        "blocks": blocks,
+        "text": "Daily News Digest" // Fallback text for notifications
+    });
+
     // 5. Send Notification
-    notify::send_to_slack(&message).expect("Failed to send to Slack");
+    notify::send_to_slack(&payload).expect("Failed to send to Slack");
 
     println!("Done.");
     Ok(())
