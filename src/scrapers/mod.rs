@@ -1,5 +1,6 @@
 use std::error::Error;
 
+#[derive(Debug)]
 pub struct NewsItem {
     pub title: String,
     pub url: String,
@@ -14,3 +15,5 @@ pub trait Scraper {
 pub mod nyt;
 pub mod guardian;
 pub mod korea;
+pub mod cnbc;
+pub mod techcrunch;
